@@ -33,7 +33,13 @@ export class Target extends Component {
     render() {
         const { size } = this.props;
         const { x, y } = this.getDisplayCoordinates()
-  return <div className="target" style={{zIndex:size, width:size, height:size, transform: `translate3d(${x}px, ${y}px,0) scale(${this.props.style.scale})`}}></div>
+        return <div className="target" style={{
+            backgroundColor: this.props.style.color || 'white',
+            zIndex: size,
+            width: size,
+            height: size,
+            transform: `translate3d(${x}px, ${y}px,0) scale(${this.props.style.scale})`
+        }}></div>
         
     }
 }

@@ -1,84 +1,111 @@
 import React, { Component } from 'react';
-import { Target } from './Target.jsx';
 import _ from 'lodash';
 import { Transition, animated } from 'react-spring/renderprops';
+import { withTracker } from 'meteor/react-meteor-data';
+
+import { Target } from "./Target";
+import { GameCollection } from "../api/game.collection";
+import {PlayerNameForm} from "./PlayerNameForm";
+import { PlayerList } from './PlayerList';
 const AnimatedTarget = animated(Target);
- export class App extends Component {
-   state = {
-     x: 0, y: 0,
-     targets: [
-       { _id:1, x:300, y:300, size:100 },
-       { _id:2, x:500, y:300, size:150 },
-       { _id:3, x: 500, y:500, size:200 },
-       {_id:4, x:300,y:500, size:250} 
-    ]
-   }
-  
-  componentDidMount() {
-    let isPointerLocked = false;
 
-    window.addEventListener('click', () => {
-      if (!isPointerLocked) {
-        document.body.requestPointerLock();
-      }
-    });
+export class App extends Component {
 
-    document.addEventListener('pointerlockchange', () => {
-      isPointerLocked = document.pointerLockElement === document.body;
-    });
+    state = {
+        playerId: null,
+        x: 0 , y: 0
+    };
 
-    let x = 0, y = 0;
-    let view = {x,y}
-      window.addEventListener('mousemove', (e) => {
-      if (isPointerLocked) {
-        x += e.movementX;
-        y += e.movementY;
+    componentDidMount() {
 
-        view.x = x;
-        view.y = y;
-      }
-    });
-    
-    const animation = () => {
-      this.setState(view);
-     window.requestAnimationFrame(animation);
-    }
-    window.requestAnimationFrame(animation);
-
-  }
-  render() {
-    const { x, y } = this.state;
-    return (
-      <>
-        <div className="crosshair"></div>
-        <Transition
-          native
-          items={this.state.targets}
-          keys={(target) => target._id}
-          from={{ scale:0}}
-          enter={{ scale:1}}
-          leave={{scale:0}}
-        >
-          {(target) => {
-            return (props) => {
-              return <AnimatedTarget
-             style={props}
-             key={target._id}
-             _id={target._id}
-             onClick={(_id) => {
-              const i = _.findIndex(this.state.targets, { _id })
-              const targets = this.state.targets.slice(0);
-              targets.splice(i, 1);
-              this.setState({targets})
-            }}
-            x={target.x - x}
-            y={target.y - y}
-            size={target.size}
-          />
+        const self = this;
+        setInterval(function () {
+          const gameId = self.props.game._id;
+            if(gameId) {
+                Meteor.call("game.ping", gameId);
             }
-          }}
-        </Transition>          
-      </>
-    )
-  }
+        }, 5000);
+
+        let isPointerLocked = false;
+        window.addEventListener('click', () => {
+            if(!isPointerLocked && this.state.playerId) {
+                document.body.requestPointerLock();
+            }
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            isPointerLocked = document.pointerLockElement === document.body;
+        });
+
+        let x = 0, y = 0;
+        let view = { x, y };
+        window.addEventListener('mousemove', (evt) => {
+            if(isPointerLocked) {
+                x += evt.movementX;
+                y += evt.movementY;
+
+                view.x = x;
+                view.y = y;
+            }
+        });
+
+        const animation = () => {
+           if (this.state.x !== view.x || this.state.y !== view.y) {
+              this.setState(view);
+           }
+            window.requestAnimationFrame(animation);
+        };
+        window.requestAnimationFrame(animation);
+    }
+
+    render() {
+      const { x, y } = this.state;
+      // console.log(this.props.game.players)
+
+        return (
+            <>
+
+                {this.state.playerId ?
+                    <>
+                        <div className="crosshair" />
+                        <PlayerList players={this.props.game.players}/>
+                        <Transition
+                            native
+                            items={this.props.game.targets}
+                            keys={(target) => target._id}
+                            from={{ scale: 0 }}
+                            enter={{ scale: 1 }}
+                            leave={{ scale: 0 }}>
+                            {(target) => {
+                                return (props) => {
+                                    return <AnimatedTarget
+                                        style={{color: target.color, ...props}}
+                                        key={target._id}
+                                        _id={target._id}
+                                        onClick={(_id) => Meteor.call("game.targetHit", this.props.game._id, _id, this.state.playerId)}
+                                        x={target.x - x}
+                                        y={target.y - y}
+                                        size={target.size} />;
+                                }
+                            }}
+                        </Transition>
+                    </>
+                    :
+              <PlayerNameForm onSubmit={(name) => { 
+                Meteor.call("game.addPlayer", this.props.game._id, name, (err,playerId) => {
+                if (!err) {
+                     this.setState({playerId})
+              }
+              })   
+              } }/>
+                }
+
+            </>
+        )
+    }
+  
 }
+export const AppWithTracker = withTracker(({ gameId }) => {
+  const game = GameCollection.findOne({ _id: gameId }) || { targets: [] };
+    return { game };
+})(App);
